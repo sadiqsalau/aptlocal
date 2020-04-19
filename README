@@ -1,0 +1,7 @@
+Requirements:
+1. Node.js installed
+2. GNUGP(gpg) installed
+
+Run './aptlocal-installer' to begin installation...
+Don't run with sudo
+Follow the prompts!
