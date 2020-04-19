@@ -1,0 +1,517 @@
+#!/bin/bash
+TARGET=/usr/local/aptlocal
+HOST=0.0.0.0 #Don't Change
+PORT=5000	
+DIR="`pwd`";
+
+echo "====================================="
+echo "Running in....."
+echo "<$DIR>"
+
+echo "====================================="
+echo
+echo "This script depends on"
+echo "Node.Js and GNUPG. Make sure you have Node.js and GNUPG installed"
+echo
+echo "Press enter to continue.."
+read CONTINUE
+
+
+echo "====================================="
+echo "This directory will be linked to $TARGET..."
+echo
+echo "A server script will be created.."
+echo "HOST=${HOST}"
+echo "PORT=${PORT}"
+echo
+echo "Press enter to continue...";
+read CONTINUE
+
+echo "====================================="
+echo "Removing $TARGET if it exists!"
+sudo rm -fr "$TARGET";
+echo "Linking Directory to $TARGET..."
+sudo ln -s -f "$DIR" "$TARGET";
+
+echo "====================================="
+echo "Creating Directories...";
+mkdir -p scripts/config;
+mkdir -p repo/packages;
+
+
+
+
+echo "====================================="
+echo
+echo "Generating Scripts...";
+echo "Generating Node.js server script...";
+cat > scripts/server.js <<EOF
+const http = require('http');
+const path = require('path');
+const url = require('url');
+const fs = require('fs');
+const os = require('os');
+const child_process = require('child_process');
+
+const SERVER_PID = "${TARGET}/scripts/config/server_pid";
+
+
+const server = http.createServer((request, response)=>
+{
+    const requested = url.parse(request.url);
+	const file = "${TARGET}/repo" + decodeURIComponent(requested.pathname);
+
+
+    if(!fs.existsSync(file))
+    {
+		response.statusCode = 404;
+        response.end();
+		return;
+    }
+	
+	const stat = fs.statSync(file);
+	if(!stat.isFile())
+	{
+		response.statusCode = 401;
+		response.end();
+		return;
+	}
+
+	
+	response.setHeader('Accept-Ranges', 'bytes');
+	response.setHeader('Last-Modified', new Date(stat.atime).toGMTString());
+	const requestHeaders = request.headers;
+	
+	const stream_opt =
+	{
+		start: 0,
+		end: stat.size
+	}
+	
+	if('range' in requestHeaders)
+	{
+		try 
+		{
+			const range = requestHeaders.range.match(/bytes=(?<start>\d+)-(?<end>\d+)*/);
+			if(!Number.isNaN((start = parseInt(range.groups.start))))
+			{
+				stream_opt.start = start
+			}
+			
+			if(!Number.isNaN((end = parseInt(range.groups.end))))
+			{
+				stream_opt.end = end
+			}
+		}
+		catch(err){}
+		
+		response.statusCode = 206;
+		response.setHeader('Content-Range', \`bytes \${stream_opt.start}-\${stat.size-1}/\${stat.size}\`);
+		response.setHeader('Content-Length', stream_opt.end - stream_opt.start);
+		
+	}
+	
+	else
+	{
+	    response.statusCode = 200;
+	    response.setHeader('Content-Length', stat.size);
+	}
+	
+	const stream = fs.createReadStream(file, stream_opt);
+	const close = ()=>
+	{
+		stream.unpipe(response);
+		stream.destroy();
+		response.end();
+	}
+	
+	request.on('close', close);
+	stream.pipe(response);
+});
+
+
+
+
+
+const print_info = () =>
+{
+	console.log("[Available on]");
+	const interfaces = os.networkInterfaces();
+	Object.keys(interfaces).forEach((interface)=>
+	{
+		console.log("\n" + interface.toUpperCase() + ":");
+		interfaces[interface].forEach((ip)=>
+		{
+			if(ip.family == "IPv4")
+			{
+				console.log(ip.address + ":${PORT}");
+			}
+		})
+	});
+}
+
+server.on('error', (error)=>
+{
+	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
+	{
+		if(fs.existsSync(SERVER_PID))
+		{
+			const pid = parseInt(fs.readFileSync(SERVER_PID));
+			const p_details = child_process.execSync(\`ps -p \${pid}\`,
+			{
+				encoding: 'utf8'
+			});
+
+			if(p_details.indexOf(pid) !== -1) {
+				console.log('The repository server is already running...');
+				print_info();
+				return;
+			}
+		}
+
+		console.log(\`The Server couldn't start,	
+a server is running on ${HOST}:${PORT}
+This could be the server for the repository....\`);
+	}
+});
+
+
+server.on('listening', ()=>
+{
+    let kill_action;
+	process.on('SIGINT', (kill_action = ()=>
+	{
+		if(server.listening)
+		{
+			console.log("\n\nKilling server...")
+			server.close();
+
+			if(fs.existsSync(SERVER_PID))
+			{
+				console.log('Cleaning up...')
+				fs.unlinkSync(SERVER_PID);
+			}
+		}
+		
+	}));
+	process.on('SIGTERM', kill_action);
+	process.on('SIGINT', kill_action);
+	const handler = fs.openSync(SERVER_PID, "w");
+	fs.writeSync(handler, process.pid);
+	fs.closeSync(handler);
+
+	console.log('Server started:');
+	print_info();
+	console.log('\nPress Ctrl+C to close!');
+});
+
+server.listen({
+	host: "${HOST}",
+	port: "${PORT}"
+});
+EOF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Script for cleaning old packages
+echo "Generating cleanup script..."
+cat > scripts/clean.js <<EOF
+const fs = require('fs');
+const ROOT_DIR = "${TARGET}/repo/";
+const Package_Index = ROOT_DIR + "Packages";
+if(!fs.existsSync(Package_Index)){
+	console.log("No index has been generated, build the repository first!");
+	process.exit();
+}
+console.log("Reading Packages...");
+const Package_Index_Text = fs.readFileSync(Package_Index, "utf8");
+
+let packages = {};
+let remove = [];
+let lists = Package_Index_Text.split(/\n\n/);
+
+lists.forEach((item)=>{
+    if(!item) return;
+	let value = item.split(/\n(?!\s)/);
+	value = value.map((item)=>
+	{
+		return item.split(": ", 2);
+	});
+	value = Object.fromEntries(value);
+	let arch = value['Architecture'];
+	let name = value['Package'];
+	
+	let name_arch = name + ":" + arch;
+	
+	
+
+	if((name_arch in packages) && fs.existsSync(ROOT_DIR + packages[name_arch]['Filename'])) {
+		remove.push(packages[name_arch]['Filename']);
+	}
+	packages[name_arch] = {
+	    Filename: value['Filename'],
+	    text: item
+    }
+});	
+
+
+remove.map((package)=>
+{
+    console.log("Removing " + package + "...");
+	fs.unlinkSync(ROOT_DIR + package);
+});
+
+if(remove.length){
+	const fh_Packages = fs.openSync(Package_Index, "w");
+	for(let package in packages){
+		fs.writeSync(fh_Packages, packages[package]['text'] + "\n\n");
+	}
+	fs.closeSync(fh_Packages);
+}
+console.log("\n\nRemoved " + remove.length + " package(s)!");
+EOF
+
+
+
+
+get_key ()
+{
+    if [ $1 == NEW ]; then
+	RETURN_VALUE=`grep -Po --max-count=1 --regexp="[A-Z\d]{40}" <<EOF
+$(gpg --full-generate-key)
+EOF
+`
+    else
+    RETURN_VALUE=`grep -Po --max-count=1 --regexp="[A-Z\d]{40}" <<EOF
+$(gpg --list-key "$2")
+EOF
+`
+    fi;
+}
+
+
+echo "====================================="
+echo
+echo "Create a key that doesn't expire if you don't have one";
+echo
+echo "Would you like to generate a GPG key ? (y/n)"
+echo "(Type n to cancel if you have generated one)";
+echo
+read ANS
+echo
+if [ -z "$ANS" ] || ([ "$ANS" != "n" ] && [ "$ANS" != "N" ]); then
+    get_key NEW;
+    KEYID=$RETURN_VALUE;
+else
+    if [ -z "$(gpg --list-keys)" ]; then
+        echo
+        echo "Aborting.... No key found!"
+        exit
+    else
+        echo
+        echo "Note the ID or name of the key you would like to use"
+        echo "the ID looks like this 4DA37F6DC2...3406DF0A9 "
+        echo
+        echo
+        gpg --list-keys;
+        echo
+        echo "Press enter to continue..."
+        read CONTINUE
+        
+        while [ -z "${KEYID}" ]; do
+            echo
+            echo "Type in the key ID or name"
+            read KEYID
+            get_key ID "${KEYID}";
+            KEYID=$RETURN_VALUE;
+            if [ -z "$KEYID" ]; then
+                echo "<Unknown or invalid key supplied>";
+                echo
+            fi;
+        done; 
+    fi;
+fi;
+
+
+
+echo
+echo "Your key ID is ${KEYID}";
+echo "Press enter to continue..."
+read CONTINUE
+
+echo
+echo "====================================="
+echo "Generating Additional Scripts";
+cat > scripts/aptlocal <<EOF
+#!/bin/bash
+DIR="${TARGET}/repo";
+cd "\${DIR}"
+echo "Running in <\`pwd\`>";
+
+copy_debs ()
+{
+    echo
+    echo "Copying Packages...";
+    cp -u -f /var/cache/apt/archives/*.deb packages;
+}
+
+remove_debs ()
+{
+    echo
+    echo "Removing Old version of packages..."
+    node ../scripts/clean.js;
+
+}
+
+start_server ()
+{
+    echo "Starting Server...";
+    node ../scripts/server.js;
+}
+
+gen_key ()
+{
+	gpg --output KEY.gpg --armor --export ${KEYID}
+}
+
+get_update ()
+{
+	echo "Getting Updates..."
+	sudo apt-get clean;
+	sudo apt-get update;
+}
+add_key ()
+{
+	echo "Adding Key";
+	sudo apt-key add KEY.gpg;
+#   wget -q -O - http://${HOST}:${PORT}/KEY.gpg | sudo apt-key add -;
+}
+
+gen_packages ()
+{
+   	apt-ftparchive packages packages > tmp_Packages;
+    apt-sortpkgs tmp_Packages > Packages;
+    rm tmp_Packages;
+    echo
+}
+
+gen_packages_gz ()
+{
+    echo "Generating index of packages...";
+    gen_packages
+    remove_debs
+    gzip -k -f Packages;
+
+}
+
+gen_release ()
+{
+    
+    echo "Generating Release...";
+    apt-ftparchive release . > Release;
+    gpg --default-key "${KEYID}" -abs -o Release.gpg Release;
+    
+}
+
+gen_inrelease ()
+{
+    echo "Generating InRelease...";
+    gpg --default-key "${KEYID}" --clearsign -o InRelease Release;
+}
+
+clean_repo ()
+{
+    rm -fr Release Release.gpg InRelease KEY.gpg Packages.gz;
+}
+
+
+
+OPTIONS=(
+"Start-Server"
+"Build-Repo"
+"Merge-Key"
+"Copy-Packages"
+"Exit"
+)
+
+
+PS3="What to do:"
+select OPT in  \${OPTIONS[@]}; 
+    do
+        case \$OPT in
+        \${OPTIONS[0]})
+        start_server
+        break
+        ;;
+        \${OPTIONS[1]})
+        copy_debs
+        clean_repo
+        gen_packages_gz
+        gen_release
+        gen_inrelease
+		gen_key
+		add_key
+		get_update
+        break
+        ;;
+        \${OPTIONS[2]})
+        add_key
+        break
+        ;;
+        \${OPTIONS[3]})
+        copy_debs
+        break
+        ;;
+        \${OPTIONS[4]})
+        exit
+        break
+        ;;
+        esac
+done
+
+
+echo "Done..";
+EOF
+chmod 755 scripts/aptlocal
+
+echo
+echo "====================================="
+echo  "Linking Scripts...";
+sudo ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
+
+echo "====================================="
+echo "Generating Repository...";
+cat > scripts/config/aptlocal.list <<EOF
+deb http://${HOST}:${PORT}/ /
+EOF
+sudo cp scripts/config/aptlocal.list /etc/apt/sources.list.d
+
+
+echo
+echo "Now you can run:"
+echo "> aptlocal --- to manage the repository";
+echo
+echo "NOTE: Make sure the repository's server is running"
+echo "before building the repository!"
+echo
+echo "Always use apt-get instead of apt to install, "
+echo "and update the repository after downloading newer packages to back it up!"
+echo
+echo "Installation complete..."
+echo "Press enter to continue.."
+read CONTINUE
