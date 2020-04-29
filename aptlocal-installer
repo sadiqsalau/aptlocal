@@ -4,20 +4,21 @@ HOST=0.0.0.0 #Don't Change
 PORT=5000	
 DIR="`pwd`";
 
-echo "====================================="
+echo
 echo "Running in....."
 echo "<$DIR>"
 
-echo "====================================="
+echo
 echo
 echo "This script depends on"
-echo "Node.Js and GNUPG. Make sure you have Node.js and GNUPG installed"
+echo "Node.js and GNUPG. Make sure you have all installed"
 echo
 echo "Press enter to continue.."
 read CONTINUE
 
 
-echo "====================================="
+echo
+echo
 echo "This directory will be linked to $TARGET..."
 echo
 echo "A server script will be created.."
@@ -27,13 +28,13 @@ echo
 echo "Press enter to continue...";
 read CONTINUE
 
-echo "====================================="
+echo
 echo "Removing $TARGET if it exists!"
 sudo rm -fr "$TARGET";
 echo "Linking Directory to $TARGET..."
 sudo ln -s -f "$DIR" "$TARGET";
-
-echo "====================================="
+echo
+echo
 echo "Creating Directories...";
 mkdir -p scripts/config;
 mkdir -p repo/packages;
@@ -41,7 +42,7 @@ mkdir -p repo/packages;
 
 
 
-echo "====================================="
+echo
 echo
 echo "Generating Scripts...";
 echo "Generating Node.js server script...";
@@ -305,7 +306,7 @@ EOF
 }
 
 
-echo "====================================="
+echo
 echo
 echo "Create a key that doesn't expire if you don't have one";
 echo
@@ -353,13 +354,14 @@ echo
 echo "Your key ID is ${KEYID}";
 echo "Press enter to continue..."
 read CONTINUE
-
 echo
-echo "====================================="
+echo
+echo
 echo "Generating Additional Scripts";
 cat > scripts/aptlocal <<EOF
 #!/bin/bash
 DIR="${TARGET}/repo";
+KEYID="${KEYID}"
 cd "\${DIR}"
 echo "Running in <\`pwd\`>";
 
@@ -386,7 +388,7 @@ start_server ()
 
 gen_key ()
 {
-	gpg --output KEY.gpg --armor --export ${KEYID}
+	gpg --output KEY.gpg --armor --export "\${KEYID}"
 }
 
 get_update ()
@@ -404,10 +406,9 @@ add_key ()
 
 gen_packages ()
 {
-   	apt-ftparchive packages packages > tmp_Packages;
-    apt-sortpkgs tmp_Packages > Packages;
-    rm tmp_Packages;
-    echo
+   	 apt-ftparchive packages packages > unsorted_Packages;
+   	 apt-sortpkgs unsorted_Packages > Packages;
+   	 rm -f unsorted_Packages;
 }
 
 gen_packages_gz ()
@@ -424,19 +425,19 @@ gen_release ()
     
     echo "Generating Release...";
     apt-ftparchive release . > Release;
-    gpg --default-key "${KEYID}" -abs -o Release.gpg Release;
+    gpg --default-key "\${KEYID}" -abs -o Release.gpg Release;
     
 }
 
 gen_inrelease ()
 {
     echo "Generating InRelease...";
-    gpg --default-key "${KEYID}" --clearsign -o InRelease Release;
+    gpg --default-key "\${KEYID}" --clearsign -o InRelease Release;
 }
 
 clean_repo ()
 {
-    rm -fr Release Release.gpg InRelease KEY.gpg Packages.gz;
+    rm -fr Release Release.gpg InRelease KEY.gpg Packages.gz Packages unsorted_Packages;
 }
 
 
@@ -490,14 +491,16 @@ EOF
 chmod 755 scripts/aptlocal
 
 echo
-echo "====================================="
+echo
+echo
 echo  "Linking Scripts...";
 sudo ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
-
-echo "====================================="
+echo
+echo
+echo
 echo "Generating Repository...";
 cat > scripts/config/aptlocal.list <<EOF
-deb http://${HOST}:${PORT}/ /
+deb [arch=all] http://${HOST}:${PORT}/ /
 EOF
 sudo cp scripts/config/aptlocal.list /etc/apt/sources.list.d
 
@@ -506,8 +509,8 @@ echo
 echo "Now you can run:"
 echo "> aptlocal --- to manage the repository";
 echo
-echo "NOTE: Make sure the repository's server is running"
-echo "before building the repository!"
+echo "Make sure the server is running before updating"
+echo
 echo
 echo "Always use apt-get instead of apt to install, "
 echo "and update the repository after downloading newer packages to back it up!"
