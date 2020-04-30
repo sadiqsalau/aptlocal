@@ -1,0 +1,359 @@
+#!/bin/bash
+print ()
+{
+	echo
+	echo $1
+}
+
+ask_continue ()
+{
+	print "Press enter to continue"
+	read PROCEED
+}
+
+print "APTLOCAL INSTALLER ver 1.0"
+print "The installer depends on:"
+echo "1) Node.js"
+print "Make sure you have all installed!"
+ask_continue
+
+# Continue setup
+HOST="0.0.0.0"
+PORT="55365"
+TARGET="/usr/local/aptlocal"
+DIR=`pwd`
+
+print "The installer is running in:"
+print $DIR
+
+print "1) This directory will be linked to - ${TARGET}"
+echo "2) A server script will be generated!"
+echo "3) Some folders and additional scripts will be created!"
+
+
+
+
+print "Server details:"
+echo "HOST: ${HOST}"
+echo "PORT: ${PORT}"
+
+
+ask_continue
+
+
+print "Initializing..."
+print "Removing if exists:"
+echo "$TARGET"
+echo
+sudo rm "$TARGET"
+echo "Done."
+
+print "Linking current directory to ${TARGET}"
+sudo ln -s -f "$DIR" "$TARGET"
+echo "Done"
+
+print "Creating folders..."
+mkdir -p repo/debs scripts/config
+echo "Done."
+
+
+
+
+
+
+
+
+
+
+
+print "Generating Node.js server script...";
+cat > scripts/server.js <<EOF
+const {createServer} = require('http');
+const {networkInterfaces} = require('os');
+const {execSync} = require('child_process');
+const {parse} = require('url');
+const fs = require('fs');
+const ROOT = '${TARGET}';
+const SERVER_PID = ROOT + "/scripts/config/server_pid";
+const server = createServer((request, response)=>
+{
+    const requested = parse(request.url);
+    const file = ROOT + "/repo" + decodeURIComponent(requested.pathname);
+
+
+    if(!fs.existsSync(file))
+    {
+      response.statusCode = 404;
+      response.end();
+      return;
+    }
+
+  	const stat = fs.statSync(file);
+  	if(!stat.isFile())
+  	{
+  		response.statusCode = 401;
+  		response.end();
+  		return;
+  	}
+
+
+  	response.setHeader('Accept-Ranges', 'bytes');
+  	response.setHeader('Last-Modified', new Date(stat.atime).toGMTString());
+  	const requestHeaders = request.headers;
+
+  	const streamOption =
+  	{
+  		start: 0,
+  		end: stat.size
+  	}
+
+  	if('range' in requestHeaders)
+  	{
+  		try
+  		{
+        let start, end;
+  			const range = requestHeaders.range.match(/bytes=(?<start>\d+)-(?<end>\d+)*/);
+
+  			if(!Number.isNaN(start = parseInt(range.groups.start))) streamOption.start = start;
+  			if(!Number.isNaN(end = parseInt(range.groups.end))) streamOption.end = end;
+  		}
+  		catch(err){}
+
+  		response.statusCode = 206;
+  		response.setHeader('Content-Range', \`bytes \${streamOption.start}-\${stat.size-1}/\${stat.size}\`);
+  		response.setHeader('Content-Length', streamOption.end - streamOption.start);
+
+  	}
+
+  	else
+  	{
+  	    response.statusCode = 200;
+  	    response.setHeader('Content-Length', stat.size);
+  	}
+
+  	if(streamOption.start == streamOption.end)
+  	{
+  		response.end();
+  		return;
+  	}
+
+  	const stream = fs.createReadStream(file, streamOption);
+  	const close = ()=>
+  	{
+  		stream.unpipe(response);
+  		stream.destroy();
+  		response.end();
+  	}
+
+  	request.on('close', close);
+  	stream.pipe(response);
+});
+
+
+
+
+
+const printInfo = () =>
+{
+	console.log("[Available on]");
+	const interfaces = networkInterfaces();
+	Object.keys(interfaces).forEach((interface)=>
+	{
+		console.log("\n" + interface.toUpperCase() + ":");
+		interfaces[interface].forEach((ip)=>
+		{
+			if(ip.family == "IPv4") console.log(ip.address + ":${PORT}");
+		})
+	});
+}
+
+server.on('error', (error)=>
+{
+	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
+	{
+		if(fs.existsSync(SERVER_PID))
+		{
+			const pid = parseInt(fs.readFileSync(SERVER_PID));
+			const pDetails = execSync(\`ps -p \${pid}\`,
+			{
+				encoding: 'utf8'
+			});
+
+			if(pDetails.indexOf(pid) !== -1) {
+				console.log('The repository server is already running...');
+				printInfo();
+				return;
+			}
+		}
+
+		console.log(\`The Server couldn't start,
+a server is running on ${HOST}:${PORT}
+This could be the server for the repository....\`);
+	}
+});
+
+
+server.on('listening', ()=>
+{
+    let killAction;
+  	process.on('SIGINT', (killAction = ()=>
+  	{
+  		if(server.listening)
+  		{
+  			console.log("\n\nKilling server...")
+  			server.close();
+
+  			if(fs.existsSync(SERVER_PID))
+  			{
+  				console.log('Cleaning up...')
+  				fs.unlinkSync(SERVER_PID);
+  			}
+  		}
+
+	}));
+	process.on('SIGTERM', killAction);
+	process.on('SIGINT', killAction);
+	const handler = fs.openSync(SERVER_PID, "w");
+	fs.writeSync(handler, process.pid);
+	fs.closeSync(handler);
+
+	console.log('Server started:');
+	printInfo();
+	console.log('\nPress Ctrl+C to close!');
+});
+
+server.listen({
+	host: "${HOST}",
+	port: "${PORT}"
+});
+
+EOF
+
+
+
+
+
+
+
+echo "Generating Aptlocal Script";
+cat > scripts/aptlocal <<EOF
+#!/bin/bash
+DIR="${TARGET}/repo";
+cd "\${DIR}"
+echo "Running in <\`pwd\`>";
+
+copy_debs ()
+{
+    echo
+    echo "Copying Packages...";
+    cp -u -f /var/cache/apt/archives/*.deb debs;
+}
+
+
+start_server ()
+{
+    echo "Starting Server...";
+    node ../scripts/server.js;
+}
+
+
+get_update ()
+{
+	echo "Getting Updates..."
+	echo
+	sudo apt-get clean;
+	sudo apt-get update;
+}
+
+
+
+
+gen_packages_gz ()
+{
+    echo "Generating index of packages...";
+    apt-ftparchive packages debs > Packages;
+    gzip -k -f Packages;
+
+}
+
+
+
+
+
+clean_repo ()
+{
+    rm -fr  Packages.gz Packages;
+}
+
+
+
+OPTIONS=(
+"Start-Server"
+"Copy-Packages"
+"Build-Repo"
+"Exit"
+)
+
+
+PS3="What to do:"
+select OPT in  \${OPTIONS[@]};
+    do
+        case \$OPT in
+        \${OPTIONS[0]})
+        start_server
+        break
+        ;;
+        \${OPTIONS[1]})
+        copy_debs
+        break
+        ;;
+        \${OPTIONS[2]})
+        copy_debs
+        clean_repo
+        gen_packages_gz
+		get_update
+        break
+        ;;
+        \${OPTIONS[3]})
+        exit
+        break
+        ;;
+        esac
+done
+
+
+echo "Done..";
+EOF
+chmod 755 scripts/aptlocal
+
+
+# Linking script
+echo  "Linking Scripts...";
+sudo ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
+
+
+
+
+# Generating repository
+print "Generating Repository...";
+cat > scripts/config/aptlocal.list <<EOF
+deb [trusted=yes] http://${HOST}:${PORT}/ /
+EOF
+echo "Adding Repository"
+sudo cp scripts/config/aptlocal.list /etc/apt/sources.list.d
+
+
+
+# Installation complete
+print "Installation complete!"
+ask_continue
+
+print "You can now run: aptlocal"
+echo "Use this to manage your repository"
+print "Make sure the server is running when building the repository or running 'apt-get update'"
+
+print "Always use apt-get so that the packages you download from other"
+echo "repositories are not deleted before you copy them to the local repository!"
+
+ask_continue
+echo
