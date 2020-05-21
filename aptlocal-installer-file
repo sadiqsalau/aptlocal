@@ -5,6 +5,10 @@ print ()
 	echo $1
 }
 
+if [ `whoami` != 'root' ]; then print "You must run this script as root!";
+	exit;
+fi;
+
 ask_continue ()
 {
 	print "Press enter to continue"
@@ -27,15 +31,15 @@ print "Initializing..."
 print "Removing if exists:"
 echo "$TARGET"
 print
-sudo rm "$TARGET"
+rm "$TARGET"
 echo "Done."
 
 print "Linking current directory to ${TARGET}"
-sudo ln -s -f "$DIR" "$TARGET"
+ln -s -f "$DIR" "$TARGET"
 echo "Done"
 
 print "Creating folders..."
-mkdir -p repo/debs scripts
+mkdir -p repo/debs scripts/config
 echo "Done."
 
 
@@ -59,15 +63,6 @@ copy_debs ()
     cp -u -f /var/cache/apt/archives/*.deb debs;
 }
 
-
-
-get_update ()
-{
-	echo "Getting Updates..."
-	echo
-	sudo apt-get clean;
-	sudo apt-get update;
-}
 
 
 
@@ -108,7 +103,7 @@ select OPT in  \${OPTIONS[@]};
         copy_debs
         clean_repo
         gen_packages_gz
-		get_update
+        echo "Now run: apt-get update"
         break
         ;;
         \${OPTIONS[2]})
@@ -126,7 +121,7 @@ chmod 755 scripts/aptlocal
 
 # Linking script
 echo  "Linking Scripts...";
-sudo ln -s -f "$TARGET/scripts/aptlocal" /usr/local/bin
+ln -s -f "$TARGET/scripts/aptlocal" /usr/local/bin
 
 
 
@@ -137,7 +132,7 @@ cat > scripts/config/aptlocal.list <<EOF
 deb [trusted=yes] file:${TARGET}/repo ./
 EOF
 echo "Adding Repository"
-sudo cp scripts/config/aptlocal.list /etc/apt/sources.list.d
+cp scripts/config/aptlocal.list /etc/apt/sources.list.d
 
 
 

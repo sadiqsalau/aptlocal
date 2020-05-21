@@ -5,6 +5,10 @@ print ()
 	echo $1
 }
 
+if [ `whoami` != 'root' ]; then print "You must run this script as root!";
+  exit;
+fi;
+
 ask_continue ()
 {
 	print "Press enter to continue"
@@ -14,6 +18,7 @@ ask_continue ()
 print "APTLOCAL INSTALLER ver 1.0"
 print "The installer depends on:"
 echo "1) Node.js"
+echo "2) dpkg-dev"
 print "Make sure you have all installed!"
 ask_continue
 
@@ -45,11 +50,11 @@ print "Initializing..."
 print "Removing if exists:"
 echo "$TARGET"
 echo
-sudo rm "$TARGET"
+rm "$TARGET"
 echo "Done."
 
 print "Linking current directory to ${TARGET}"
-sudo ln -s -f "$DIR" "$TARGET"
+ln -s -f "$DIR" "$TARGET"
 echo "Done"
 
 print "Creating folders..."
@@ -67,170 +72,171 @@ echo "Done."
 
 
 print "Generating Node.js server script...";
+
 cat > scripts/server.js <<EOF
-const {createServer} = require('http');
-const {networkInterfaces} = require('os');
-const {execSync} = require('child_process');
-const {parse} = require('url');
-const fs = require('fs');
-const ROOT = '${TARGET}';
-const SERVER_PID = ROOT + "/scripts/config/server_pid";
-const server = createServer((request, response)=>
-{
-    const requested = parse(request.url);
-    const file = ROOT + "/repo" + decodeURIComponent(requested.pathname);
+  process.chdir("${TARGET}/repo");
+  const {createServer} = require('http');
+  const {networkInterfaces} = require('os');
+  const {execSync} = require('child_process');
+  const {parse} = require('url');
+  const fs = require('fs');
+
+  const SERVER_PID = "../scripts/config/server_pid";
+  
+  const server = createServer((request, response)=>
+  {
+      const requested = parse(request.url);
+      const file = \`.\${decodeURIComponent(requested.pathname)}\`;
+
+      if(!fs.existsSync(file))
+      {
+        response.statusCode = 404;
+        response.end();
+        return;
+      }
+
+    	const stat = fs.statSync(file);
+    	if(!stat.isFile())
+    	{
+    		response.statusCode = 401;
+    		response.end();
+    		return;
+    	}
 
 
-    if(!fs.existsSync(file))
-    {
-      response.statusCode = 404;
-      response.end();
-      return;
-    }
+    	response.setHeader('Accept-Ranges', 'bytes');
+    	response.setHeader('Last-Modified', new Date(stat.atime).toGMTString());
+    	const requestHeaders = request.headers;
 
-  	const stat = fs.statSync(file);
-  	if(!stat.isFile())
+    	const streamOption =
+    	{
+    		start: 0,
+    		end: stat.size
+    	}
+
+    	if('range' in requestHeaders)
+    	{
+    		try
+    		{
+          let start, end;
+    			const range = requestHeaders.range.match(/bytes=(?<start>\d+)-(?<end>\d+)*/);
+
+    			if(!Number.isNaN(start = parseInt(range.groups.start))) streamOption.start = start;
+    			if(!Number.isNaN(end = parseInt(range.groups.end))) streamOption.end = end;
+    		}
+    		catch(err){}
+
+    		if(streamOption.start == streamOption.end)
+	    	{
+	    		response.statusCode = 200;
+	    		response.end();
+	    		return;
+	    	}
+    		response.statusCode = 206;
+    		response.setHeader('Content-Range', \`bytes \${streamOption.start}-\${stat.size-1}/\${stat.size}\`);
+    		response.setHeader('Content-Length', streamOption.end - streamOption.start);
+
+    	}
+
+    	else
+    	{
+    	    response.statusCode = 200;
+    	    response.setHeader('Content-Length', stat.size);
+    	}
+
+    	
+
+    	const stream = fs.createReadStream(file, streamOption);
+    	const close = ()=>
+    	{
+    		stream.unpipe(response);
+    		stream.destroy();
+    		response.end();
+    	}
+
+    	request.on('close', close);
+    	stream.pipe(response);
+  });
+
+
+
+
+
+  const printInfo = () =>
+  {
+  	console.log("[Available on]");
+  	const interfaces = networkInterfaces();
+  	Object.keys(interfaces).forEach((interface)=>
   	{
-  		response.statusCode = 401;
-  		response.end();
-  		return;
-  	}
-
-
-  	response.setHeader('Accept-Ranges', 'bytes');
-  	response.setHeader('Last-Modified', new Date(stat.atime).toGMTString());
-  	const requestHeaders = request.headers;
-
-  	const streamOption =
-  	{
-  		start: 0,
-  		end: stat.size
-  	}
-
-  	if('range' in requestHeaders)
-  	{
-  		try
+  		console.log("\n" + interface.toUpperCase() + ":");
+  		interfaces[interface].forEach((ip)=>
   		{
-        let start, end;
-  			const range = requestHeaders.range.match(/bytes=(?<start>\d+)-(?<end>\d+)*/);
+  			if(ip.family == "IPv4") console.log(ip.address + ":${PORT}");
+  		})
+  	});
+  }
 
-  			if(!Number.isNaN(start = parseInt(range.groups.start))) streamOption.start = start;
-  			if(!Number.isNaN(end = parseInt(range.groups.end))) streamOption.end = end;
-  		}
-  		catch(err){}
-
-  		response.statusCode = 206;
-  		response.setHeader('Content-Range', \`bytes \${streamOption.start}-\${stat.size-1}/\${stat.size}\`);
-  		response.setHeader('Content-Length', streamOption.end - streamOption.start);
-
-  	}
-
-  	else
+  server.on('error', (error)=>
+  {
+  	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
   	{
-  	    response.statusCode = 200;
-  	    response.setHeader('Content-Length', stat.size);
-  	}
-
-  	if(streamOption.start == streamOption.end)
-  	{
-  		response.end();
-  		return;
-  	}
-
-  	const stream = fs.createReadStream(file, streamOption);
-  	const close = ()=>
-  	{
-  		stream.unpipe(response);
-  		stream.destroy();
-  		response.end();
-  	}
-
-  	request.on('close', close);
-  	stream.pipe(response);
-});
-
-
-
-
-
-const printInfo = () =>
-{
-	console.log("[Available on]");
-	const interfaces = networkInterfaces();
-	Object.keys(interfaces).forEach((interface)=>
-	{
-		console.log("\n" + interface.toUpperCase() + ":");
-		interfaces[interface].forEach((ip)=>
-		{
-			if(ip.family == "IPv4") console.log(ip.address + ":${PORT}");
-		})
-	});
-}
-
-server.on('error', (error)=>
-{
-	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
-	{
-		if(fs.existsSync(SERVER_PID))
-		{
-			const pid = parseInt(fs.readFileSync(SERVER_PID));
-			const pDetails = execSync(\`ps -p \${pid}\`,
-			{
-				encoding: 'utf8'
-			});
-
-			if(pDetails.indexOf(pid) !== -1) {
-				console.log('The repository server is already running...');
-				printInfo();
-				return;
-			}
-		}
-
-		console.log(\`The Server couldn't start,
-a server is running on ${HOST}:${PORT}
-This could be the server for the repository....\`);
-	}
-});
-
-
-server.on('listening', ()=>
-{
-    let killAction;
-  	process.on('SIGINT', (killAction = ()=>
-  	{
-  		if(server.listening)
+  		if(fs.existsSync(SERVER_PID))
   		{
-  			console.log("\n\nKilling server...")
-  			server.close();
-
-  			if(fs.existsSync(SERVER_PID))
+  			const pid = parseInt(fs.readFileSync(SERVER_PID));
+  			const pDetails = execSync(\`ps -p \${pid}\`,
   			{
-  				console.log('Cleaning up...')
-  				fs.unlinkSync(SERVER_PID);
+  				encoding: 'utf8'
+  			});
+
+  			if(pDetails.indexOf(pid) !== -1) {
+  				console.log('The repository server is already running...');
+  				printInfo();
+  				return;
   			}
   		}
 
-	}));
-	process.on('SIGTERM', killAction);
-	process.on('SIGINT', killAction);
-	const handler = fs.openSync(SERVER_PID, "w");
-	fs.writeSync(handler, process.pid);
-	fs.closeSync(handler);
+  		console.log(\`The Server couldn't start,
+  a server is running on ${HOST}:${PORT}
+  This could be the server for the repository....\`);
+  	}
+  });
 
-	console.log('Server started:');
-	printInfo();
-	console.log('\nPress Ctrl+C to close!');
-});
 
-server.listen({
-	host: "${HOST}",
-	port: "${PORT}"
-});
+  server.on('listening', ()=>
+  {
+      let killAction;
+    	process.on('SIGINT', (killAction = ()=>
+    	{
+    		if(server.listening)
+    		{
+    			console.log("\n\nKilling server...")
+    			server.close();
+
+    			if(fs.existsSync(SERVER_PID))
+    			{
+    				console.log('Cleaning up...')
+    				fs.unlinkSync(SERVER_PID);
+    			}
+    		}
+
+  	}));
+  	process.on('SIGTERM', killAction);
+  	process.on('SIGINT', killAction);
+  	const handler = fs.openSync(SERVER_PID, "w");
+  	fs.writeSync(handler, process.pid);
+  	fs.closeSync(handler);
+
+  	console.log('Server started:');
+  	printInfo();
+  	console.log('\nPress Ctrl+C to close!');
+  });
+
+  server.listen({
+  	host: "${HOST}",
+  	port: "${PORT}"
+  });
 
 EOF
-
-
-
 
 
 
@@ -257,33 +263,6 @@ start_server ()
 }
 
 
-get_update ()
-{
-	echo "Getting Updates..."
-	echo
-	sudo apt-get clean;
-	sudo apt-get update;
-}
-
-
-
-
-gen_packages_gz ()
-{
-    echo "Generating index of packages...";
-    apt-ftparchive packages debs > Packages;
-    gzip -k -f Packages;
-
-}
-
-
-
-
-
-clean_repo ()
-{
-    rm -fr  Packages.gz Packages;
-}
 
 
 
@@ -309,9 +288,10 @@ select OPT in  \${OPTIONS[@]};
         ;;
         \${OPTIONS[2]})
         copy_debs
-        clean_repo
-        gen_packages_gz
-		get_update
+        echo "Generating index of packages...";
+    	apt-ftparchive packages debs > Packages;
+    	gzip -k -f Packages;
+    	echo "Now run: 'apt-get update'";
         break
         ;;
         \${OPTIONS[3]})
@@ -329,7 +309,7 @@ chmod 755 scripts/aptlocal
 
 # Linking script
 echo  "Linking Scripts...";
-sudo ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
+ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
 
 
 
@@ -338,9 +318,10 @@ sudo ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
 print "Generating Repository...";
 cat > scripts/config/aptlocal.list <<EOF
 deb [trusted=yes] http://${HOST}:${PORT}/ /
+deb [trusted=yes] file:${TARGET}/repo ./
 EOF
 echo "Adding Repository"
-sudo cp scripts/config/aptlocal.list /etc/apt/sources.list.d
+cp scripts/config/aptlocal.list /etc/apt/sources.list.d
 
 
 
@@ -350,7 +331,6 @@ ask_continue
 
 print "You can now run: aptlocal"
 echo "Use this to manage your repository"
-print "Make sure the server is running when building the repository or running 'apt-get update'"
 
 print "Always use apt-get so that the packages you download from other"
 echo "repositories are not deleted before you copy them to the local repository!"
