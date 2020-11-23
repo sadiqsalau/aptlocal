@@ -223,7 +223,7 @@ cat > scripts/server.js <<EOF
   	process.on('SIGTERM', killAction);
   	process.on('SIGINT', killAction);
   	const handler = fs.openSync(SERVER_PID, "w");
-  	fs.writeSync(handler, process.pid);
+  	fs.writeSync(handler, process.pid.toString());
   	fs.closeSync(handler);
 
   	console.log('Server started:');
