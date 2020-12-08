@@ -1,19 +1,18 @@
 #!/bin/bash
-cd "/usr/local/aptlocal/repo"
 echo "Running in <`pwd`>";
 
 copy_debs ()
 {
     echo
     echo "Copying Packages...";
-    cp -u -f /var/cache/apt/archives/*.deb debs;
+    cp -u -f /var/cache/apt/archives/*.deb /usr/local/aptlocal/repo/debs;
 }
 
 
 start_server ()
 {
     echo "Starting Server...";
-    node ../scripts/server.js;
+    node /usr/local/aptlocal/scripts/server.js;
 }
 
 build_repo ()
@@ -21,7 +20,7 @@ build_repo ()
 	copy_debs
 	echo "Generating index of packages...";
 	apt-ftparchive packages debs > Packages;
-	node ../scripts/build.js;
+	node /usr/local/aptlocal/scripts/build.js;
 	gzip -k -f Packages;
 	echo "Now run: 'apt-get update'";
 }

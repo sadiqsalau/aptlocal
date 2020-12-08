@@ -1,16 +1,16 @@
-  process.chdir("/usr/local/aptlocal/repo");
-  const {createServer} = require('http');
-  const {networkInterfaces} = require('os');
-  const {parse} = require('url');
-  const fs = require('fs');
-  const SERVER_CONFIG = {
+const SERVER_ROOT = "/usr/local/aptlocal/repo";
+const {createServer} = require('http');
+const {networkInterfaces} = require('os');
+const {parse} = require('url');
+const fs = require('fs');
+const SERVER_CONFIG = {
 	host: "0.0.0.0",
 	port: "55365"
 };
   const server = createServer((request, response)=>
   {
       const requested = parse(request.url);
-      const file = `.${decodeURIComponent(requested.pathname)}`;
+      const file = SERVER_ROOT + `${decodeURIComponent(requested.pathname)}`;
 
       if(!fs.existsSync(file))
       {
