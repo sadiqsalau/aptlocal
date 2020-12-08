@@ -1,0 +1,80 @@
+#!/bin/bash
+print ()
+{
+	echo
+	echo $1
+}
+
+if [ `whoami` != 'root' ]; then print "You must run this script as root!";
+  exit;
+fi;
+
+ask_continue ()
+{
+	print "Press enter to continue"
+	read PROCEED
+}
+
+print "APTLOCAL INSTALLER"
+print "The installer depends on:"
+echo "1) Node.js"
+echo "2) apt-ftparchive"
+print "Make sure you have all installed!"
+ask_continue
+
+# Continue setup
+TARGET="/usr/local/aptlocal"
+DIR=`pwd`
+
+print "The installer is running in:"
+print $DIR
+
+print "This directory will be linked to - ${TARGET}"
+
+
+ask_continue
+
+
+print "Initializing..."
+print "Removing if exists:"
+echo "$TARGET"
+echo
+rm "$TARGET"
+echo "Done."
+
+print "Linking current directory to ${TARGET}"
+ln -s -f "$DIR" "$TARGET"
+echo "Done"
+
+print "Creating folders..."
+mkdir -p repo/debs
+echo "Done."
+
+
+
+
+
+
+# Linking script
+echo  "Linking Scripts...";
+ln -s -f "$DIR/scripts/aptlocal" /usr/local/bin
+
+
+
+echo "Adding Repository"
+cp scripts/config/aptlocal.list /etc/apt/sources.list.d
+
+
+
+# Installation complete
+print "Installation complete!"
+ask_continue
+
+print "You can now run: aptlocal"
+echo "Use this to manage your repository"
+
+print "Always use apt-get so that the packages you download from other"
+echo "repositories are not deleted before you copy them to the local repository!"
+
+ask_continue
+echo

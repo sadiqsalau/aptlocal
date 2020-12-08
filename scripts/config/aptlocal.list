@@ -1,0 +1,2 @@
+deb [trusted=yes] http://0.0.0.0:55365/ /
+deb [trusted=yes] file:/usr/local/aptlocal/repo ./

@@ -1,0 +1,63 @@
+#!/bin/bash
+cd "/usr/local/aptlocal/repo"
+echo "Running in <`pwd`>";
+
+copy_debs ()
+{
+    echo
+    echo "Copying Packages...";
+    cp -u -f /var/cache/apt/archives/*.deb debs;
+}
+
+
+start_server ()
+{
+    echo "Starting Server...";
+    node ../scripts/server.js;
+}
+
+build_repo ()
+{	
+	copy_debs
+	echo "Generating index of packages...";
+	apt-ftparchive packages debs > Packages;
+	node ../scripts/build.js;
+	gzip -k -f Packages;
+	echo "Now run: 'apt-get update'";
+}
+
+
+
+OPTIONS=(
+"Start-Server"
+"Copy-Packages"
+"Build-Repo"
+"Exit"
+)
+
+
+PS3="What to do:"
+select OPT in  ${OPTIONS[@]};
+    do
+        case $OPT in
+        ${OPTIONS[0]})
+        start_server
+        break
+        ;;
+        ${OPTIONS[1]})
+        copy_debs
+        break
+        ;;
+        ${OPTIONS[2]})
+		build_repo
+        break
+        ;;
+        ${OPTIONS[3]})
+        exit
+        break
+        ;;
+        esac
+done
+
+
+echo "Done..";
