@@ -104,32 +104,24 @@ const SERVER_CONFIG = {
   {
   	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
   	{
-  		console.log(`The Server couldn't start,
-  a server is running on ${SERVER_CONFIG.host}:${SERVER_CONFIG.port}
-  This could be the server for the repository....`);
+		  console.log(`The Server couldn't start,\na server is running on ${SERVER_CONFIG.host}:${SERVER_CONFIG.port}\nThis could be the server for the repository....`);
   	}
   });
 
 
   server.on('listening', ()=>
-  {
-      let killAction;
-    	process.on('SIGINT', (killAction = ()=>
-    	{
-    		if(server.listening)
-    		{
-    			console.log("\n\nKilling server...")
-    			server.close();
-    		}
-
-	  }));
-	  
-  	process.on('SIGTERM', killAction);
-  	process.on('SIGINT', killAction);
-
+  {	
   	console.log('Server started:');
   	printInfo();
-  	console.log('\nPress Ctrl+C to close!');
+	console.log('\nPress Ctrl+C to close!');
+
+
+	process.on('SIGTERM', function(){
+		if(server.listening)
+		{
+			server.close();
+		}
+	});
   });
 
   server.listen(SERVER_CONFIG);

@@ -1,8 +1,9 @@
 const compare = require('./dpkg-compare');
 const fs = require('fs');
+const REPO_ROOT = '/usr/local/aptlocal/repo/';
 
 const debs = {};
-const Packages = fs.readFileSync('Packages').toString().trim().split(/\n{2}/);
+const Packages = fs.readFileSync(REPO_ROOT + 'Packages').toString().trim().split(/\n{2}/);
 Packages.forEach(text=>{
 	const data = get_data(text);
 	const oldname = data['Filename'];
@@ -11,7 +12,7 @@ Packages.forEach(text=>{
 
 	text = Object.entries(data).map(item=>item.join(': ')).join('\n');
 
-	if(fs.existsSync(oldname)) fs.renameSync(oldname, file);
+	if(fs.existsSync(REPO_ROOT + oldname)) fs.renameSync(REPO_ROOT + oldname, REPO_ROOT + file);
 
 	let id = `${data['Architecture']}-${data['Package']}`;
 	if(id in debs)
@@ -24,11 +25,11 @@ Packages.forEach(text=>{
 		}
 		else if(vcomp > 0)
 		{
-			if(fs.existsSync(debs[id]['file'])) fs.unlinkSync(debs[id]['file']);
+			if(fs.existsSync(REPO_ROOT + debs[id]['file'])) fs.unlinkSync(REPO_ROOT + debs[id]['file']);
 			set_debs(id, data['Version'], file, text);
 		}
 		else {
-			if(fs.existsSync(file)) fs.unlinkSync(file);
+			if(fs.existsSync(REPO_ROOT + file)) fs.unlinkSync(REPO_ROOT + file);
 		}
 	}
 	else {
@@ -38,7 +39,7 @@ Packages.forEach(text=>{
 
 
 
-fs.writeFileSync('Packages', Object.values(debs).map(item=>item.text).join('\n\n'));
+fs.writeFileSync(REPO_ROOT + 'Packages', Object.values(debs).map(item=>item.text).join('\n\n'));
 
 
 // Functions

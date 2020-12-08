@@ -1,5 +1,4 @@
 #!/bin/bash
-echo "Running in <`pwd`>";
 
 copy_debs ()
 {
@@ -19,7 +18,7 @@ build_repo ()
 {	
 	copy_debs
 	echo "Generating index of packages...";
-	apt-ftparchive packages debs > Packages;
+	apt-ftparchive packages /usr/local/aptlocal/repo/debs > /usr/local/aptlocal/repo/Packages;
 	node /usr/local/aptlocal/scripts/build.js;
 	gzip -k -f Packages;
 	echo "Now run: 'apt-get update'";
