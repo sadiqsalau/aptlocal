@@ -5,7 +5,6 @@ fi;
 
 
 REPO_ROOT="$(dirname "$(realpath "$0")")";
-cd $REPO_ROOT;
 
 SERVER_HOST="0.0.0.0";
 SERVER_PORT="55355";
@@ -14,10 +13,10 @@ echo "Setting server config..."
 echo "{
     \"host\": \"$SERVER_HOST\",
     \"port\": \"$SERVER_PORT\"
-}" > scripts/config.json
+}" > "$REPO_ROOT/scripts/config.json"
 
 echo "Creating Folders...";
-mkdir -p repo/debs;
+mkdir -p "$REPO_ROOT/repo/debs";
 
 
 echo "Adding Repository...";
