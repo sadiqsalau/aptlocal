@@ -1,3 +1,7 @@
 # Aptlocal
 
-Quickly create a local repository
+Create a local apt repository....
+
+**Installation**
+
+Open the scripts folder and run: 'npm install'

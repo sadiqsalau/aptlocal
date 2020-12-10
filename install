@@ -1,0 +1,44 @@
+#!/bin/bash
+if [ `whoami` != 'root' ]; then print "You must run this script as root!";
+  exit;
+fi;
+
+
+REPO_ROOT="$(dirname "$(realpath "$0")")";
+cd $REPO_ROOT;
+
+SERVER_HOST="0.0.0.0";
+SERVER_PORT="55355";
+
+echo "Setting server config..."
+echo "{
+    \"host\": \"$SERVER_HOST\",
+    \"port\": \"$SERVER_PORT\"
+}" > scripts/config.json
+
+echo "Creating Folders...";
+mkdir -p repo/debs;
+
+
+echo "Adding Repository...";
+echo "
+deb [trusted=yes] http://$SERVER_HOST:$SERVER_PORT/ /
+deb [trusted=yes] file:/$REPO_ROOT/repo ./
+" > /etc/apt/sources.list.d/aptlocal.list;
+
+
+echo "Linking Script...";
+if [ -L /usr/local/bin/aptlocal ]; then
+  rm /usr/local/bin/aptlocal
+fi;
+
+ln -s "$REPO_ROOT/scripts/aptlocal" /usr/local/bin/aptlocal;
+
+echo;
+echo;
+echo "Installation completed!";
+echo;
+echo;
+
+echo "Run 'aptlocal' to manage your repository!";
+echo;

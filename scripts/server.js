@@ -1,95 +1,31 @@
-const SERVER_ROOT = "/usr/local/aptlocal/repo";
-const {createServer} = require('http');
-const {networkInterfaces} = require('os');
-const {parse} = require('url');
-const fs = require('fs');
-const SERVER_CONFIG = {
-	host: "0.0.0.0",
-	port: "55365"
-};
-  const server = createServer((request, response)=>
-  {
-      const requested = parse(request.url);
-      const file = SERVER_ROOT + `${decodeURIComponent(requested.pathname)}`;
+const http = require('http');
+const path = require('path');
+const express = require('express');
+const os = require('os');
+const SERVER_CONFIG = require('./config.json');
 
-      if(!fs.existsSync(file))
-      {
-        response.statusCode = 404;
-        response.end();
-        return;
-      }
+const BASE_PATH = path.normalize(
+    path.join(__dirname, '..')
+);
 
-    	const stat = fs.statSync(file);
-    	if(!stat.isFile())
-    	{
-    		response.statusCode = 401;
-    		response.end();
-    		return;
-    	}
+const app = express().use(
+    express.static(path.join(BASE_PATH, 'repo'))
+);
+const server = http.createServer(app);
 
+server.on('listening', ()=>{
+    process.on('SIGINT', function(){
+        console.log("\n=============================");
+        console.log('Closing Server');
+        console.log("=============================");
+        server.close();
+    });
+    
 
-    	response.setHeader('Accept-Ranges', 'bytes');
-    	response.setHeader('Last-Modified', new Date(stat.atime).toGMTString());
-    	const requestHeaders = request.headers;
-
-    	const streamOption =
-    	{
-    		start: 0,
-    		end: stat.size
-    	}
-
-    	if('range' in requestHeaders)
-    	{
-    		try
-    		{
-          		let start, end;
-    			const range = requestHeaders.range.match(/bytes=(?<start>\d+)-(?<end>\d+)*/);
-
-    			if(!Number.isNaN(start = parseInt(range.groups.start))) streamOption.start = start;
-    			if(!Number.isNaN(end = parseInt(range.groups.end))) streamOption.end = end;
-    		}
-    		catch(err){}
-
-    		if(streamOption.start == streamOption.end)
-	    	{
-	    		response.statusCode = 200;
-	    		response.end();
-	    		return;
-	    	}
-    		response.statusCode = 206;
-    		response.setHeader('Content-Range', `bytes ${streamOption.start}-${stat.size-1}/${stat.size}`);
-    		response.setHeader('Content-Length', streamOption.end - streamOption.start);
-
-    	}
-
-    	else
-    	{
-    	    response.statusCode = 200;
-    	    response.setHeader('Content-Length', stat.size);
-    	}
-
-    	
-
-    	const stream = fs.createReadStream(file, streamOption);
-    	const close = ()=>
-    	{
-    		stream.unpipe(response);
-    		stream.destroy();
-    		response.end();
-    	}
-
-    	request.on('close', close);
-    	stream.pipe(response);
-  });
-
-
-
-
-
-  const printInfo = () =>
-  {
-  	console.log("[Available on]");
-  	const interfaces = networkInterfaces();
+    console.log('Server started:');
+    console.log("[Available on]");
+      
+  	const interfaces = os.networkInterfaces();
   	Object.keys(interfaces).forEach((interface)=>
   	{
   		console.log("\n" + interface.toUpperCase() + ":");
@@ -97,32 +33,19 @@ const SERVER_CONFIG = {
   		{
   			if(ip.family == "IPv4") console.log(ip.address + `:${SERVER_CONFIG.port}`);
   		})
-  	});
-  }
+    });
+      
 
-  server.on('error', (error)=>
-  {
-  	if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
+    console.log('\nPress Ctrl+C to close!');
+    
+});
+
+server.on('error', (error)=>{
+    if(error.code == 'EADDRINUSE' && error.syscall == 'listen')
   	{
-		  console.log(`The Server couldn't start,\na server is running on ${SERVER_CONFIG.host}:${SERVER_CONFIG.port}\nThis could be the server for the repository....`);
+		console.log(`The Server couldn't start,\na server is running on ${SERVER_CONFIG.host}:${SERVER_CONFIG.port}\nThis could be the server for the repository....`);
   	}
-  });
+});
 
 
-  server.on('listening', ()=>
-  {	
-  	console.log('Server started:');
-  	printInfo();
-	console.log('\nPress Ctrl+C to close!');
-
-
-	process.on('SIGTERM', function(){
-		if(server.listening)
-		{
-			server.close();
-		}
-	});
-  });
-
-  server.listen(SERVER_CONFIG);
-
+server.listen(SERVER_CONFIG);

@@ -1,27 +1,48 @@
 #!/bin/bash
+print_line ()
+{
+    echo "===============================";
+    echo
+}
+
+SCRIPT_ROOT="$(dirname "$(realpath "$0")")";
+REPO_ROOT="$(realpath "$SCRIPT_ROOT/../")";
+
+cd "$REPO_ROOT/repo"
+
 
 copy_debs ()
 {
-    echo
+    print_line
     echo "Copying Packages...";
-    cp -u -f /var/cache/apt/archives/*.deb /usr/local/aptlocal/repo/debs;
+    cp -u -f /var/cache/apt/archives/*.deb debs;
 }
 
 
 start_server ()
 {
+    print_line
     echo "Starting Server...";
-    node /usr/local/aptlocal/scripts/server.js;
+    node "$SCRIPT_ROOT/server.js";
 }
 
 build_repo ()
 {	
 	copy_debs
 	echo "Generating index of packages...";
-	apt-ftparchive packages /usr/local/aptlocal/repo/debs > /usr/local/aptlocal/repo/Packages;
-	node /usr/local/aptlocal/scripts/build.js;
-	gzip -k -f /usr/local/aptlocal/repo/Packages;
-	echo "Now run: 'apt-get update'";
+	apt-ftparchive packages debs > Packages;
+
+
+    print_line
+    echo "Removing old packages...";
+	node "$SCRIPT_ROOT/clean.js";
+    
+    print_line
+    echo "Creating archive";
+	gzip -k -f Packages;
+
+	echo "===============================";
+    echo "Now run: 'apt-get update'";
 }
 
 

@@ -1,0 +1,4 @@
+repo/
+scripts/node_modules/
+scripts/config.json
+scripts/package-lock.json
