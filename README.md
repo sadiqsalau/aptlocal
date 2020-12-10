@@ -3,5 +3,5 @@
 Create a local apt repository....
 
 **Installation**
-
-Open the scripts folder and run: 'npm install'
+1. Install nodejs
+2. Open the scripts folder and run: 'npm install'
