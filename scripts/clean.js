@@ -13,20 +13,17 @@ if(!fs.existsSync(PACKAGES_PATH))
 	process.exit();
 }
 
-let Packages = fs.readFileSync(
+const PackagesText = fs.readFileSync(
 	PACKAGES_PATH
 ).toString().trim();
 
-if(!Packages)
+if(!PackagesText)
 {
 	process.exit();
 }
-else {
-	Packages = Packages.split(/\n{2}(?=Package:)/);
-}
-
 
 const debs = {};
+const Packages = PackagesText.split(/\n{2}(?=Package:)/);
 Packages.forEach(text=>{
 	const data = get_data(text);
 
