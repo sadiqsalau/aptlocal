@@ -1,6 +1,6 @@
 # Aptlocal
 
-Create a local apt repository....
+Creates a local apt repository....
 
 **Installation**
 1. Install nodejs

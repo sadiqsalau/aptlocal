@@ -1,31 +1,6 @@
 {
-  "name": "aptlocal",
-  "version": "1.0.0",
-  "description": "Create a local apt repository.",
-  "main": "",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
-  },
-  "author": "Sadiq Salau",
-  "license": "ISC",
   "dependencies": {
     "dpkg-compare-versions": "^1.0.1",
     "express": "^4.17.1"
-  },
-  "devDependencies": {},
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/sadiqsalau/aptlocal.git"
-  },
-  "keywords": [
-    "aptlocal",
-    "apt",
-    "repo",
-    "repository"
-  ],
-  "bugs": {
-    "url": "https://github.com/sadiqsalau/aptlocal/issues"
-  },
-  "homepage": "https://github.com/sadiqsalau/aptlocal#readme"
+  }
 }
