@@ -14,11 +14,13 @@ echo "Setting server config..."
 echo "{
     \"host\": \"$SERVER_HOST\",
     \"port\": \"$SERVER_PORT\"
-}" > "$REPO_ROOT/scripts/config.json"
+}" > "$REPO_ROOT/scripts/config.json";
+chmod 777 "$REPO_ROOT/scripts/config.json";
+
 
 echo "Creating Folders...";
-mkdir -m777 -p "$REPO_ROOT/repo/debs";
-
+mkdir -p "$REPO_ROOT/repo/debs";
+chmod -R 777 "$REPO_ROOT/repo"
 
 echo "Adding Repository...";
 echo "
