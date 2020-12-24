@@ -25,7 +25,7 @@ chmod -R 777 "$REPO_ROOT/repo"
 echo "Adding Repository...";
 echo "
 deb [trusted=yes] http://$SERVER_HOST:$SERVER_PORT/ /
-deb [trusted=yes] file:/$REPO_ROOT/repo ./
+deb [trusted=yes] file://$REPO_ROOT/repo ./
 " > /etc/apt/sources.list.d/aptlocal.list;
 
 
