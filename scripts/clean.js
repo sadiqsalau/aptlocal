@@ -29,7 +29,7 @@ Packages.forEach(text=>{
 
 	const oldname = path.join(REPO_ROOT, data['Filename']);
 	const pkgname = `${data['Package']}_${data['Version']}_${data['Architecture']}`;
-	const file = `debs/${encodeURI(pkgname)}.deb`;
+	const file = `debs/${encodeURIComponent(pkgname)}.deb`;
 	data['Filename'] = file;
 
 	
