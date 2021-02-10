@@ -1,6 +1,6 @@
 const http = require('http');
 const path = require('path');
-const express = require('express');
+const static = require('node-static');
 const os = require('os');
 const SERVER_CONFIG = require('./config.json');
 
@@ -8,10 +8,15 @@ const BASE_PATH = path.normalize(
     path.join(__dirname, '..')
 );
 
-const app = express().use(
-    express.static(path.join(BASE_PATH, 'repo'))
-);
-const server = http.createServer(app);
+const file = new static.Server(path.join(BASE_PATH, 'repo'));
+const server = http.createServer(function(request, response){
+    request.addListener('end', function () {
+        //
+        // Serve files!
+        //
+        file.serve(request, response);
+    }).resume();
+});
 
 server.on('listening', ()=>{
     process.on('SIGINT', function(){
