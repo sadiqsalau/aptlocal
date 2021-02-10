@@ -13,17 +13,13 @@ if(!fs.existsSync(PACKAGES_PATH))
 	process.exit();
 }
 
-const PackagesText = fs.readFileSync(
+const Packages = fs.readFileSync(
 	PACKAGES_PATH
-).toString().trim();
+).toString().trim().split(/\n{2}(?=Package:)/);
 
-if(!PackagesText)
-{
-	process.exit();
-}
+
 
 const debs = {};
-const Packages = PackagesText.split(/\n{2}(?=Package:)/);
 Packages.forEach(text=>{
 	const data = get_data(text);
 
@@ -54,11 +50,11 @@ Packages.forEach(text=>{
 		}
 		else if(vcomp > 0)
 		{
-			delete_file(debs[id]['file']);
+			delete_file(pkgname, debs[id]['file']);
 			set_debs(id, data['Version'], file, pkg_entry_text);
 		}
 		else {
-			delete_file(file);
+			delete_file(pkgname, file);
 		}
 	}
 	else {
@@ -72,8 +68,9 @@ fs.writeFileSync(PACKAGES_PATH, Object.values(debs).map(item=>item.text).join('\
 
 
 // Functions
-function delete_file(file)
+function delete_file(pkgname, file)
 {
+	console.log('Removing: ' + pkgname);
 	let delete_path = path.join(REPO_ROOT, file);
 
 	if(fs.existsSync(delete_path))
