@@ -24,7 +24,7 @@ Packages.forEach(text=>{
 	const data = get_data(text);
 
 	const oldname = path.join(REPO_ROOT, data['Filename']);
-	const pkgname = `${data['Package']}_${data['Version']}_${data['Architecture']}`;
+	const pkgname = `${data['Package']}_${data['Architecture']}`;
 	const file = `debs/${encodeURIComponent(pkgname)}.deb`;
 	data['Filename'] = file;
 
@@ -50,11 +50,11 @@ Packages.forEach(text=>{
 		}
 		else if(vcomp > 0)
 		{
-			delete_file(pkgname, debs[id]['file']);
+			delete_file(pkgname, oldv, debs[id]['file']);
 			set_debs(id, data['Version'], file, pkg_entry_text);
 		}
 		else {
-			delete_file(pkgname, file);
+			delete_file(pkgname, data['Version'], file);
 		}
 	}
 	else {
@@ -68,9 +68,9 @@ fs.writeFileSync(PACKAGES_PATH, Object.values(debs).map(item=>item.text).join('\
 
 
 // Functions
-function delete_file(pkgname, file)
+function delete_file(pkgname, version, file)
 {
-	console.log('Removing: ' + pkgname);
+	console.log(`Removing: ${pkgname} - ${version}`);
 	let delete_path = path.join(REPO_ROOT, file);
 
 	if(fs.existsSync(delete_path))
