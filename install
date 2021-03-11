@@ -20,14 +20,20 @@ chmod 777 "$REPO_ROOT/scripts/config.json";
 
 echo "Creating Folders...";
 mkdir -p "$REPO_ROOT/repo/debs";
-chmod -R 777 "$REPO_ROOT/repo"
+mkdir -p "$REPO_ROOT/repo/deleted";
+chmod -R 777 "$REPO_ROOT/repo";
+
+
+
 
 echo "Adding Repository...";
 echo "
-# Aptlocal
-deb [trusted=yes] http://$SERVER_HOST:$SERVER_PORT/ /
-deb [trusted=yes] file://$REPO_ROOT/repo ./
+# Aptlocal Start
 
+deb [trusted=yes] file://$REPO_ROOT/repo ./
+deb [trusted=yes] http://$SERVER_HOST:$SERVER_PORT/ /
+
+# Aptlocal End
 
 $(cat /etc/apt/sources.list)
 " > /etc/apt/sources.list;
