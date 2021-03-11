@@ -26,6 +26,20 @@ start_server ()
     node "$SCRIPT_ROOT/server.js";
 }
 
+
+delete_old_packages()
+{
+    print_line
+    echo "Removing old packages...";
+	node "$SCRIPT_ROOT/clean.js";
+	
+	print_line
+    echo "Creating archive";
+	gzip -k -f Packages;
+}
+
+
+
 build_repo ()
 {	
 	copy_debs
@@ -33,13 +47,9 @@ build_repo ()
 	apt-ftparchive packages debs > Packages;
 
 
-    print_line
-    echo "Removing old packages...";
-	node "$SCRIPT_ROOT/clean.js";
+    delete_old_packages
     
-    print_line
-    echo "Creating archive";
-	gzip -k -f Packages;
+    
 
 	echo "===============================";
     echo "Now run: 'apt-get update'";
@@ -51,6 +61,7 @@ OPTIONS=(
 "Start-Server"
 "Copy-Packages"
 "Build-Repo"
+"Delete-Old-Packages"
 "Exit"
 )
 
@@ -72,6 +83,10 @@ select OPT in  ${OPTIONS[@]};
         break
         ;;
         ${OPTIONS[3]})
+		delete_old_packages
+        break
+        ;;
+        ${OPTIONS[4]})
         exit
         break
         ;;
